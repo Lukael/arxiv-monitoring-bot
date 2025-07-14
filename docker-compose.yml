@@ -1,0 +1,10 @@
+version: "3.9"
+services:
+  arxiv-notifier:
+    build: .
+    restart: always
+    volumes:
+      - ./data:/app  # seen.db와 config.json 저장
+    environment:
+      SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/..."
+      POLL_INTERVAL: 3600 # 60분
