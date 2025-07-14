@@ -68,9 +68,33 @@ def notify(entry, feed_name):
     if not response.ok or not response.json().get("ok"):
         print(f"❌ Slack API error: {response.text}")
 
+def send_config_summary(feeds, keywords, authors):
+    headers = {
+        "Authorization": f"Bearer {SLACK_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+    summary = (
+        "*📡 arXiv Notifier 시작됨!*\n"
+        f"*Feeds:* {len(feeds)}개\n" +
+        "\n".join([f"• `{f}`" for f in feeds]) +
+        f"\n\n*Keywords:* {', '.join(keywords) or '없음'}\n" +
+        f"*Authors:* {', '.join(authors) or '없음'}"
+    )
+
+    data = {
+        "channel": SLACK_CHANNEL_ID,
+        "text": summary,
+    }
+
+    response = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=data)
+    if not response.ok or not response.json().get("ok"):
+        print("❌ Config 알림 전송 실패:", response.text)
 
 def run():
     conn = init_db()
+    feeds, keywords, authors = load_config()
+    send_config_summary(feeds, keywords, authors)
     while True:
         feeds, keywords, authors = load_config()
         print(f"🔄 Checking {len(feeds)} feeds with {len(keywords)} keywords...")
