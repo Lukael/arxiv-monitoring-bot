@@ -1,13 +1,15 @@
 import os
 import time
 import json
+import sqlite3
 import feedparser
 import requests
-import sqlite3
 
-DB_PATH = "seen.db"
 CONFIG_PATH = "config.json"
-WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
+DB_PATH = "seen.db"
+
+SLACK_TOKEN = os.getenv("SLACK_BOT_TOKEN")  # xoxb-...
+SLACK_CHANNEL_ID = os.getenv("SLACK_CHANNEL_ID")  # C0XXXXXXX
 INTERVAL = int(os.getenv("POLL_INTERVAL", 600))
 
 
@@ -23,22 +25,20 @@ def load_config():
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY)")
+    conn.execute("CREATE TABLE IF NOT EXISTS seen (id TEXT PRIMARY KEY)")
     conn.commit()
     return conn
 
 
 def has_seen(conn, paper_id):
-    c = conn.cursor()
-    c.execute("SELECT 1 FROM seen WHERE id = ?", (paper_id,))
-    return c.fetchone() is not None
+    cursor = conn.cursor()
+    cursor.execute("SELECT 1 FROM seen WHERE id = ?", (paper_id,))
+    return cursor.fetchone() is not None
 
 
 def mark_seen(conn, paper_id):
-    c = conn.cursor()
     try:
-        c.execute("INSERT INTO seen (id) VALUES (?)", (paper_id,))
+        conn.execute("INSERT INTO seen (id) VALUES (?)", (paper_id,))
         conn.commit()
     except sqlite3.IntegrityError:
         pass
@@ -54,24 +54,36 @@ def matches(entry, keywords, authors):
 
 
 def notify(entry, feed_name):
-    text = f"[{feed_name}] *{entry.title}*\nBy: {entry.author}\n{entry.link}"
-    requests.post(WEBHOOK_URL, json={"text": text})
+    headers = {
+        "Authorization": f"Bearer {SLACK_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    data = {
+        "channel": SLACK_CHANNEL_ID,
+        "text": f"[{feed_name}] *{entry.title}*\nBy: {entry.author}\n<{entry.link}|View on arXiv>",
+    }
+    response = requests.post(
+        "https://slack.com/api/chat.postMessage", headers=headers, json=data
+    )
+    if not response.ok or not response.json().get("ok"):
+        print(f"❌ Slack API error: {response.text}")
 
 
 def run():
     conn = init_db()
     while True:
         feeds, keywords, authors = load_config()
-        print(f"🔄 Loaded {len(feeds)} feeds and {len(keywords)} keywords")
-
-        for url in feeds:
-            feed = feedparser.parse(url)
-            feed_name = url.split("/")[-1]
+        print(f"🔄 Checking {len(feeds)} feeds with {len(keywords)} keywords...")
+        for feed_url in feeds:
+            feed = feedparser.parse(feed_url)
+            feed_name = feed_url.split("/")[-1]
             for entry in feed.entries:
                 if not has_seen(conn, entry.id) and matches(entry, keywords, authors):
-                    print(f"📌 Match: {entry.title}")
+                    print(f"📌 New match: {entry.title}")
                     notify(entry, feed_name)
                     mark_seen(conn, entry.id)
+            time.sleep(2)
+        print("⏳ Sleeping...\n")
         time.sleep(INTERVAL)
 
 

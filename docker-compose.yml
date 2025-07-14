@@ -3,8 +3,10 @@ services:
   arxiv-notifier:
     build: .
     restart: always
-    volumes:
-      - ./data:/app  # seen.db와 config.json 저장
     environment:
-      SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/..."
-      POLL_INTERVAL: 3600 # 60분
+      SLACK_BOT_TOKEN: "xoxb-your-real-token"
+      SLACK_CHANNEL_ID: "C0XXXXXXX"
+      POLL_INTERVAL: 3600  # 1 hour
+    volumes:
+      - ./config.json:/app/config.json
+      - ./data:/app  # seen.db 저장용
