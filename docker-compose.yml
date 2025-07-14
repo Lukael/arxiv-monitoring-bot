@@ -9,4 +9,4 @@ services:
       POLL_INTERVAL: 3600  # 1 hour
     volumes:
       - ./config.json:/app/config.json
-      - ./data:/app  # seen.db 저장용
+      - ./data:/app/data  # seen.db 저장용
